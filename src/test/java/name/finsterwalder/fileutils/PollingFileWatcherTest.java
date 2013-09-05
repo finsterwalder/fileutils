@@ -28,6 +28,8 @@ import java.io.PrintWriter;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.*;
 
 
@@ -128,6 +130,17 @@ public class PollingFileWatcherTest {
 		watcher = new PollingFileWatcher(existingFile, mockListener, 1, 6, executorMock);
 		watcher.unwatch();
 		verify(executorMock).shutdownNow();
+	}
+
+	@Test
+	public void removingAFileAlsoSchedulesADelayedNotify() throws FileNotFoundException, InterruptedException {
+		FileChangeListener mockListener = mock(FileChangeListener.class);
+		ScheduledExecutorService executorMock = mock(ScheduledExecutorService.class);
+		watcher = new PollingFileWatcher(existingFile, mockListener, 1, 6, executorMock);
+		PollingFileWatcher.ChangeWatcher changeWatcher = new PollingFileWatcher.ChangeWatcher(watcher);
+		assertThat(existingFile.delete(), is(true));
+		changeWatcher.run();
+		verify(executorMock).schedule(any(PollingFileWatcher.DelayedNotifier.class), eq(6L), eq(TimeUnit.MILLISECONDS));
 	}
 
 	private void ensureNewFileWithNewTimestamp(File file) throws FileNotFoundException {

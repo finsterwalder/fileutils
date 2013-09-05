@@ -78,7 +78,7 @@ public class PollingFileWatcher implements FileWatcher {
 
 	synchronized private boolean changed() {
 		long lastModified = file.lastModified();
-		if (lastModified > lastModifiedSeen) {
+		if (lastModified > lastModifiedSeen || lastModified == 0 && lastModifiedSeen != 0) {
 			lastModifiedSeen = lastModified;
 			return true;
 		}
