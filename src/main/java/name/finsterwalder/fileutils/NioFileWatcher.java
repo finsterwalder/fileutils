@@ -29,6 +29,7 @@ import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
@@ -61,7 +62,7 @@ public class NioFileWatcher implements FileWatcher {
 	 * Watch a file with a default grace period of 1sek.
 	 */
 	public NioFileWatcher(final String fileToWatch, final FileChangeListener fileChangeListener) {
-		this(FileSystems.getDefault().getPath(fileToWatch), fileChangeListener, DEFAULT_GRACE_PERIOD, new SimpleDateTimeProvider());
+		this(Paths.get(fileToWatch), fileChangeListener, DEFAULT_GRACE_PERIOD, new SimpleDateTimeProvider());
 	}
 
 	/**
@@ -78,15 +79,19 @@ public class NioFileWatcher implements FileWatcher {
 		this(fileToWatch, fileChangeListener, DEFAULT_GRACE_PERIOD, new SimpleDateTimeProvider());
 	}
 
-	public NioFileWatcher(final File fileToWatch, final FileChangeListener fileChangeListener, long gracePeriod) {
-		this(fileToWatch.toPath(), fileChangeListener, gracePeriod, new SimpleDateTimeProvider());
-	}
-
 	public NioFileWatcher(final String fileToWatch, final FileChangeListener fileChangeListener, long gracePeriod) {
 		this(FileSystems.getDefault().getPath(fileToWatch), fileChangeListener, gracePeriod, new SimpleDateTimeProvider());
 	}
 
-	public NioFileWatcher(final Path fileToWatchParam, final FileChangeListener fileChangeListener, final long gracePeriod, TimeProvider timeProvider) {
+	public NioFileWatcher(final File fileToWatch, final FileChangeListener fileChangeListener, long gracePeriod) {
+		this(fileToWatch.toPath(), fileChangeListener, gracePeriod, new SimpleDateTimeProvider());
+	}
+
+	public NioFileWatcher(final Path fileToWatch, final FileChangeListener fileChangeListener, long gracePeriod) {
+		this(fileToWatch, fileChangeListener, gracePeriod, new SimpleDateTimeProvider());
+	}
+
+	/*package*/ NioFileWatcher(final Path fileToWatchParam, final FileChangeListener fileChangeListener, final long gracePeriod, TimeProvider timeProvider) {
 		Ensure.notNull(fileToWatchParam, "fileToWatchParam");
 		Ensure.notNull(fileChangeListener, "fileChangeListener");
 		Ensure.notNull(timeProvider, "timeProvider");

@@ -43,7 +43,7 @@ public class NioFileWatcherTest {
 	File file = new File(FILENAME);
 	FileWatcher watcher;
 	private File dirThatDoesNotExist = new File("DirectoryThatDoesNotExist");
-	private File fileInDirThatDoesNotExist = new File("DirectoryThatDoesNotExist/file");
+	private File fileInDirThatDoesNotExist = new File("DirectoryThatDoesNotExist", "file");
 
 	@Before
 	@After
@@ -58,7 +58,7 @@ public class NioFileWatcherTest {
 
 	@Test
 	public void watchingAFileInADirectoryThatDoesNotExist() throws FileNotFoundException, InterruptedException {
-		watcher = new NioFileWatcher("DirectoryThatDoesNotExist/file", fileChangeListenerMock, 200);
+		watcher = new NioFileWatcher(fileInDirThatDoesNotExist, fileChangeListenerMock, 200);
 		dirThatDoesNotExist.mkdirs();
 		try (PrintWriter writer = new PrintWriter(fileInDirThatDoesNotExist)) {
 			writer.println("Some Text");

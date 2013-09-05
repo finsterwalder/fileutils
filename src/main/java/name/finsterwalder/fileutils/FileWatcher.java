@@ -18,9 +18,14 @@
 package name.finsterwalder.fileutils;
 
 /**
+ * A FileWatcher watches a single file for changes. Watching the file can be stopped.
  * @author Malte Finsterwalder
  * @since 2013-09-04 18:18
  */
 public interface FileWatcher {
+	/**
+	 * Stop watching the file. Once stoped, watching can not be started again. A new PollingFileWatcher needs to be created when the file
+	 * needs to be watched again.
+	 */
 	void unwatch();
 }
