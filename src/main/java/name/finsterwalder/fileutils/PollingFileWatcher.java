@@ -50,14 +50,6 @@ public class PollingFileWatcher implements FileWatcher {
 		}
 	};
 
-	public static FileWatcher watch(final String fileToWatch, final FileChangeListener fileChangeListener, long reloadIntervalInMs, final long gracePeriod) {
-		return watch(new File(fileToWatch), fileChangeListener, reloadIntervalInMs, gracePeriod);
-	}
-
-	public static FileWatcher watch(final File fileToWatch, final FileChangeListener fileChangeListener, long reloadIntervalInMs, final long gracePeriod) {
-		return new PollingFileWatcher(fileToWatch, fileChangeListener, reloadIntervalInMs, gracePeriod, Executors.newSingleThreadScheduledExecutor());
-	}
-
 	public PollingFileWatcher(final String filename, final FileChangeListener fileChangeListener) {
 		this(new File(filename), fileChangeListener, DEFAULT_RELOAD_INTERVAL_IN_MS, DEFAULT_GRACE_PERIOD_IN_MS, Executors.newSingleThreadScheduledExecutor());
 	}
@@ -70,6 +62,10 @@ public class PollingFileWatcher implements FileWatcher {
 		this(new File(filename), fileChangeListener, reloadIntervalInMs, gracePeriod, Executors.newSingleThreadScheduledExecutor());
 	}
 
+	public PollingFileWatcher(final File fileToWatch, final FileChangeListener fileChangeListener, long reloadIntervalInMs, final long gracePeriod) {
+		this(fileToWatch, fileChangeListener, reloadIntervalInMs, gracePeriod, Executors.newSingleThreadScheduledExecutor());
+	}
+
 	public PollingFileWatcher(final File file, final FileChangeListener fileChangeListener, final long reloadIntervalInMs, final long gracePeriod, ScheduledExecutorService executorService) {
 		this.executorService = executorService;
 		this.file = file;
@@ -77,7 +73,7 @@ public class PollingFileWatcher implements FileWatcher {
 		this.fileChangeListener = fileChangeListener;
 		lastModifiedSeen = file.lastModified();
 		Runtime.getRuntime().addShutdownHook(shutdownHook);
-		this.executorService.scheduleAtFixedRate(new ChangeWatcher(), reloadIntervalInMs, reloadIntervalInMs, TimeUnit.MILLISECONDS);
+		this.executorService.scheduleAtFixedRate(new ChangeWatcher(this), reloadIntervalInMs, reloadIntervalInMs, TimeUnit.MILLISECONDS);
 	}
 
 	synchronized private boolean changed() {
@@ -100,34 +96,47 @@ public class PollingFileWatcher implements FileWatcher {
 		unwatch();
 	}
 
-	public class ChangeWatcher implements Runnable {
+	/*package*/ static class ChangeWatcher implements Runnable {
+
+		private PollingFileWatcher watcher;
+
+		public ChangeWatcher(final PollingFileWatcher watcher) {
+			this.watcher = watcher;
+		}
 
 		@Override
 		public void run() {
 			try {
-				synchronized (PollingFileWatcher.this) {
-					if (!changed && (changed = changed())) {
+				synchronized (watcher) {
+					if (!watcher.changed && (watcher.changed = watcher.changed())) {
 						// Schedule a delayed notify after the grace period
-						executorService.schedule(new DelayedNotifier(), gracePeriod, TimeUnit.MILLISECONDS);
+						watcher.executorService.schedule(new DelayedNotifier(watcher), watcher.gracePeriod, TimeUnit.MILLISECONDS);
 					}
 				}
 			} catch (Exception e) {
-				LOGGER.warn("PollingFileWatcher could not check file {}.", file.getAbsolutePath(), e);
+				LOGGER.warn("PollingFileWatcher could not check file {}.", watcher.file.getAbsolutePath(), e);
 			}
 		}
 	}
 
-	private class DelayedNotifier implements Runnable {
+	/*package*/ static class DelayedNotifier implements Runnable {
+
+		private PollingFileWatcher watcher;
+
+		public DelayedNotifier(final PollingFileWatcher watcher) {
+			this.watcher = watcher;
+		}
+
 		@Override
 		public void run() {
-			synchronized (PollingFileWatcher.this) {
-				if (changed()) {
+			synchronized (watcher) {
+				if (watcher.changed()) {
 					// File changed again. Schedule another grace period
-					executorService.schedule(this, gracePeriod, TimeUnit.MILLISECONDS);
+					watcher.executorService.schedule(this, watcher.gracePeriod, TimeUnit.MILLISECONDS);
 				} else {
 					// File didn't change again. Notify!
-					changed = false;
-					fileChangeListener.fileChanged();
+					watcher.changed = false;
+					watcher.fileChangeListener.fileChanged();
 				}
 			}
 		}

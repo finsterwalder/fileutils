@@ -25,6 +25,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Mockito.*;
 
@@ -37,81 +39,107 @@ public class PollingFileWatcherTest {
 
 	private static final String FILENAME = "FILE_THAT_EXISTS";
 	private static final String NOT_EXISTING_FILENAME = "FILE_THAT_DOES_NOT_EXIST";
-	private final File file = new File(FILENAME);
-	private final File not_existing_file = new File(NOT_EXISTING_FILENAME);
-	private FileWatcher watcher;
+	private final File existingFile = new File(FILENAME);
+	private final File notExistingFile = new File(NOT_EXISTING_FILENAME);
+	private PollingFileWatcher watcher;
 
 	@Before
 	public void before() throws IOException, InterruptedException {
-		not_existing_file.delete();
-		file.delete();
-		try (PrintWriter writer = new PrintWriter(file)) {
-			writer.println("some content");
-		}
+		notExistingFile.delete();
+		existingFile.delete();
+		writeToFile(existingFile, "some content");
 	}
 
 	@After
 	public void after() throws InterruptedException {
-		not_existing_file.delete();
-		file.delete();
+		notExistingFile.delete();
+		existingFile.delete();
 		if (watcher != null) {
 			watcher.unwatch();
 		}
 	}
 
 	@Test
-	public void nonExistingFilesCanBeWatched() throws FileNotFoundException, InterruptedException {
+	public void watchingAFileStartsAnExecutorAtAFixedRate() throws FileNotFoundException, InterruptedException {
 		FileChangeListener mockListener = mock(FileChangeListener.class);
-		watcher = PollingFileWatcher.watch(not_existing_file, mockListener, 1, 1);
-		try (PrintWriter writer = new PrintWriter(not_existing_file)) {
-			writer.println("new");
-		}
-		Thread.sleep(10);
+		ScheduledExecutorService executorMock = mock(ScheduledExecutorService.class);
+		watcher = new PollingFileWatcher(notExistingFile, mockListener, 1, 6, executorMock);
+		verify(executorMock).scheduleAtFixedRate(any(PollingFileWatcher.ChangeWatcher.class), eq(1L), eq(1L), eq(TimeUnit.MILLISECONDS));
+	}
+
+	@Test
+	public void whenAChangeWatcherDetectsAChangeItSchedulesADelayedNotify() throws FileNotFoundException, InterruptedException {
+		FileChangeListener mockListener = mock(FileChangeListener.class);
+		ScheduledExecutorService executorMock = mock(ScheduledExecutorService.class);
+		watcher = new PollingFileWatcher(notExistingFile, mockListener, 1, 6, executorMock);
+		PollingFileWatcher.ChangeWatcher changeWatcher = new PollingFileWatcher.ChangeWatcher(watcher);
+		writeToFile(notExistingFile, "text");
+		changeWatcher.run();
+		verify(executorMock).schedule(any(PollingFileWatcher.DelayedNotifier.class), eq(6L), eq(TimeUnit.MILLISECONDS));
+	}
+
+	@Test
+	public void whenAChangeWatcherDetectsNoChangeNothingHappens() throws FileNotFoundException, InterruptedException {
+		FileChangeListener mockListener = mock(FileChangeListener.class);
+		ScheduledExecutorService executorMock = mock(ScheduledExecutorService.class);
+		watcher = new PollingFileWatcher(notExistingFile, mockListener, 1, 6, executorMock);
+		PollingFileWatcher.ChangeWatcher changeWatcher = new PollingFileWatcher.ChangeWatcher(watcher);
+		changeWatcher.run();
+		verify(executorMock, never()).schedule(any(PollingFileWatcher.DelayedNotifier.class), eq(6L), eq(TimeUnit.MILLISECONDS));
+	}
+
+	@Test
+	public void whenADelayedNotifyDetectsAnotherChangeItSchedulesAnotherDelayedNotify() throws FileNotFoundException {
+		FileChangeListener mockListener = mock(FileChangeListener.class);
+		ScheduledExecutorService executorMock = mock(ScheduledExecutorService.class);
+		watcher = new PollingFileWatcher(notExistingFile, mockListener, 1, 6, executorMock);
+		PollingFileWatcher.DelayedNotifier delayedNotifier = new PollingFileWatcher.DelayedNotifier(watcher);
+		writeToFile(notExistingFile, "text");
+		delayedNotifier.run();
+		verify(executorMock).schedule(any(PollingFileWatcher.DelayedNotifier.class), eq(6L), eq(TimeUnit.MILLISECONDS));
+	}
+
+
+	@Test
+	public void whenADelayedNotifyDetectsNoChangeAnUpdateIsSent() throws FileNotFoundException {
+		FileChangeListener mockListener = mock(FileChangeListener.class);
+		ScheduledExecutorService executorMock = mock(ScheduledExecutorService.class);
+		watcher = new PollingFileWatcher(notExistingFile, mockListener, 1, 6, executorMock);
+		PollingFileWatcher.DelayedNotifier delayedNotifier = new PollingFileWatcher.DelayedNotifier(watcher);
+		delayedNotifier.run();
 		verify(mockListener).fileChanged();
 	}
 
 	@Test
-	public void existingFilesCanBeWatched() throws IOException, InterruptedException {
+	public void changesInAnExistingFileAreDetected() throws FileNotFoundException, InterruptedException {
 		FileChangeListener mockListener = mock(FileChangeListener.class);
-		watcher = PollingFileWatcher.watch(file, mockListener, 1, 1);
-		// needed because of the file.lastModified timestamp check with 1sec granularity
-		ensureNewFileWithNewTimestamp();
-		Thread.sleep(10);
-		verify(mockListener).fileChanged();
+		ScheduledExecutorService executorMock = mock(ScheduledExecutorService.class);
+		watcher = new PollingFileWatcher(existingFile, mockListener, 1, 6, executorMock);
+		ensureNewFileWithNewTimestamp(existingFile);
+		PollingFileWatcher.ChangeWatcher changeWatcher = new PollingFileWatcher.ChangeWatcher(watcher);
+		changeWatcher.run();
+		verify(executorMock).schedule(any(PollingFileWatcher.DelayedNotifier.class), eq(6L), eq(TimeUnit.MILLISECONDS));
 	}
 
 	@Test
-	public void afterUnwatchNoUpdatesAreSent() throws IOException, InterruptedException {
+	public void unwatchStopsPolling() throws IOException, InterruptedException {
 		FileChangeListener mockListener = mock(FileChangeListener.class);
-		watcher = PollingFileWatcher.watch(file, mockListener, 1, 1);
+		ScheduledExecutorService executorMock = mock(ScheduledExecutorService.class);
+		watcher = new PollingFileWatcher(existingFile, mockListener, 1, 6, executorMock);
 		watcher.unwatch();
-		// needed because of the file.lastModified timestamp check with 1sec granularity
-		ensureNewFileWithNewTimestamp();
-		Thread.sleep(10);
-		verifyNoMoreInteractions(mockListener);
+		verify(executorMock).shutdownNow();
 	}
 
-	private void ensureNewFileWithNewTimestamp() throws FileNotFoundException {
+	private void ensureNewFileWithNewTimestamp(File file) throws FileNotFoundException {
 		long lastModified = file.lastModified();
 		while (lastModified >= file.lastModified()) {
-			try (PrintWriter writer = new PrintWriter(file)) {
-				writer.println("other");
-			}
+			writeToFile(file, "other");
 		}
 	}
 
-//	@Ignore("runs too long")
-	@Test
-	public void obeyGracePeriod() throws InterruptedException, FileNotFoundException {
-		FileChangeListener mockListener = mock(FileChangeListener.class);
-		watcher = PollingFileWatcher.watch(file, mockListener, 100, 2000);
-		Thread.sleep(1500);
-		ensureNewFileWithNewTimestamp();
-		Thread.sleep(1500);
-		ensureNewFileWithNewTimestamp();
-		Thread.sleep(1500);
-		ensureNewFileWithNewTimestamp();
-		Thread.sleep(4000);
-		verify(mockListener).fileChanged();
+	private void writeToFile(final File file, final String text) throws FileNotFoundException {
+		try (PrintWriter writer = new PrintWriter(file)) {
+			writer.println(text);
+		}
 	}
 }
