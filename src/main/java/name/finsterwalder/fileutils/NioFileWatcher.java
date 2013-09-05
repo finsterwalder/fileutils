@@ -41,6 +41,16 @@ import static java.nio.file.StandardWatchEventKinds.*;
 
 
 /**
+ * Watch a single file for changes. Uses the Java NIO WatchService. The WatchService is called by the underlying operating system
+ * when a file is changed.
+ * This mechanismus needs operating system support and might not work in all environments.
+ * Also I made the observation, that it does not work with NFS mounted file systems.
+ * Whenever a change in a file is detected, a delayed notification is triggered. This ensures a grace period
+ * which allows the file to be modified completely, before the notification about the change is issued.
+ *
+ * File modifications often first truncate a file and then write the file new. Without a grace period, several notifications
+ * will be issued for a single change. The grace period reduces the amount of notifications.
+ *
  * @author Malte Finsterwalder
  * @since 2013-09-04 18:18
  */
@@ -59,34 +69,55 @@ public class NioFileWatcher implements FileWatcher {
 	private final TimeProvider timeProvider;
 
 	/**
-	 * Watch a file with a default grace period of 1sek.
+	 * Create a NioFileWatcher with a default grace period of 1000ms.
+	 * @param filenameOfFileToWatch File to watch
+	 * @param fileChangeListener Listener to notify about changes
 	 */
-	public NioFileWatcher(final String fileToWatch, final FileChangeListener fileChangeListener) {
-		this(Paths.get(fileToWatch), fileChangeListener, DEFAULT_GRACE_PERIOD, new SimpleDateTimeProvider());
+	public NioFileWatcher(final String filenameOfFileToWatch, final FileChangeListener fileChangeListener) {
+		this(Paths.get(filenameOfFileToWatch), fileChangeListener, DEFAULT_GRACE_PERIOD, new SimpleDateTimeProvider());
 	}
 
 	/**
-	 * Watch a file with a default grace period of 1sek.
+	 * Create a NioFileWatcher with a default grace period of 1000ms.
+	 * @param fileToWatch File to watch
+	 * @param fileChangeListener Listener to notify about changes
 	 */
 	public NioFileWatcher(final File fileToWatch, final FileChangeListener fileChangeListener) {
 		this(fileToWatch.toPath(), fileChangeListener, DEFAULT_GRACE_PERIOD, new SimpleDateTimeProvider());
 	}
 
 	/**
-	 * Watch a file with a default grace period of 1sek.
+	 * Create a NioFileWatcher with a default grace period of 1000ms.
+	 * @param fileToWatch File to watch
+	 * @param fileChangeListener Listener to notify about changes
 	 */
 	public NioFileWatcher(final Path fileToWatch, final FileChangeListener fileChangeListener) {
 		this(fileToWatch, fileChangeListener, DEFAULT_GRACE_PERIOD, new SimpleDateTimeProvider());
 	}
 
-	public NioFileWatcher(final String fileToWatch, final FileChangeListener fileChangeListener, long gracePeriod) {
-		this(FileSystems.getDefault().getPath(fileToWatch), fileChangeListener, gracePeriod, new SimpleDateTimeProvider());
+	/**
+	 * Create a NioFileWatcher with the given grace period.
+	 * @param filenameOfFileToWatch File to watch
+	 * @param fileChangeListener Listener to notify about changes
+	 */
+	public NioFileWatcher(final String filenameOfFileToWatch, final FileChangeListener fileChangeListener, long gracePeriod) {
+		this(FileSystems.getDefault().getPath(filenameOfFileToWatch), fileChangeListener, gracePeriod, new SimpleDateTimeProvider());
 	}
 
+	/**
+	 * Create a NioFileWatcher with the given grace period.
+	 * @param fileToWatch File to watch
+	 * @param fileChangeListener Listener to notify about changes
+	 */
 	public NioFileWatcher(final File fileToWatch, final FileChangeListener fileChangeListener, long gracePeriod) {
 		this(fileToWatch.toPath(), fileChangeListener, gracePeriod, new SimpleDateTimeProvider());
 	}
 
+	/**
+	 * Create a NioFileWatcher with the given grace period.
+	 * @param fileToWatch File to watch
+	 * @param fileChangeListener Listener to notify about changes
+	 */
 	public NioFileWatcher(final Path fileToWatch, final FileChangeListener fileChangeListener, long gracePeriod) {
 		this(fileToWatch, fileChangeListener, gracePeriod, new SimpleDateTimeProvider());
 	}

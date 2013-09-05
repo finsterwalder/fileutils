@@ -138,6 +138,13 @@ public class PollingFileWatcher implements FileWatcher {
 		this(fileToWatch.toPath(), fileChangeListener, reloadIntervalInMs, gracePeriodInMs, Executors.newSingleThreadScheduledExecutor());
 	}
 
+	/**
+	 * Create a PollingFileWatcher with the given reload interval and the given grace period.
+	 * @param fileToWatch File to watch
+	 * @param fileChangeListener Listener to notify about changes
+	 * @param reloadIntervalInMs Reload interval in ms
+	 * @param gracePeriodInMs Grace period in ms to wait after a change in the file before sending an update to the FileChangeListener
+	 */
 	public PollingFileWatcher(final Path fileToWatch, final FileChangeListener fileChangeListener, long reloadIntervalInMs, final long gracePeriodInMs) {
 		this(fileToWatch, fileChangeListener, reloadIntervalInMs, gracePeriodInMs, Executors.newSingleThreadScheduledExecutor());
 	}
