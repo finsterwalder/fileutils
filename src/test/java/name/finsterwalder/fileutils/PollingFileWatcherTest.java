@@ -23,7 +23,6 @@ import org.junit.Test;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -31,7 +30,6 @@ import java.nio.file.attribute.FileTime;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Arrays.asList;
 import static org.mockito.Mockito.*;
 
 
@@ -51,7 +49,7 @@ public class PollingFileWatcherTest {
 	public void before() throws IOException, InterruptedException {
 		Files.deleteIfExists(notExistingFile);
 		Files.deleteIfExists(existingFile);
-		writeToFile(existingFile, "some content");
+		FileUtils.writeToFile(existingFile, "some content");
 	}
 
 	@After
@@ -77,7 +75,7 @@ public class PollingFileWatcherTest {
 		ScheduledExecutorService executorMock = mock(ScheduledExecutorService.class);
 		watcher = new PollingFileWatcher(notExistingFile, mockListener, 1, 6, executorMock);
 		PollingFileWatcher.ChangeWatcher changeWatcher = new PollingFileWatcher.ChangeWatcher(watcher);
-		writeToFile(notExistingFile, "text");
+		FileUtils.writeToFile(notExistingFile, "text");
 		changeWatcher.run();
 		verify(executorMock).schedule(any(PollingFileWatcher.DelayedNotifier.class), eq(6L), eq(TimeUnit.MILLISECONDS));
 	}
@@ -88,7 +86,7 @@ public class PollingFileWatcherTest {
 		ScheduledExecutorService executorMock = mock(ScheduledExecutorService.class);
 		watcher = new PollingFileWatcher(notExistingFile, mockListener, 1, 0, executorMock);
 		PollingFileWatcher.ChangeWatcher changeWatcher = new PollingFileWatcher.ChangeWatcher(watcher);
-		writeToFile(notExistingFile, "text");
+		FileUtils.writeToFile(notExistingFile, "text");
 		changeWatcher.run();
 		verify(mockListener).fileChanged();
 		verify(executorMock, never()).schedule(any(PollingFileWatcher.DelayedNotifier.class), eq(6L), eq(TimeUnit.MILLISECONDS));
@@ -110,7 +108,7 @@ public class PollingFileWatcherTest {
 		ScheduledExecutorService executorMock = mock(ScheduledExecutorService.class);
 		watcher = new PollingFileWatcher(notExistingFile, mockListener, 1, 6, executorMock);
 		PollingFileWatcher.DelayedNotifier delayedNotifier = new PollingFileWatcher.DelayedNotifier(watcher);
-		writeToFile(notExistingFile, "text");
+		FileUtils.writeToFile(notExistingFile, "text");
 		delayedNotifier.run();
 		verify(executorMock).schedule(any(PollingFileWatcher.DelayedNotifier.class), eq(6L), eq(TimeUnit.MILLISECONDS));
 	}
@@ -170,11 +168,7 @@ public class PollingFileWatcherTest {
 	static void ensureNewFileWithNewTimestamp(final Path file) throws IOException {
 		FileTime lastModified = Files.getLastModifiedTime(file);
 		while (lastModified.compareTo(Files.getLastModifiedTime(file)) >= 0) {
-			writeToFile(file, "other");
+			FileUtils.writeToFile(file, "other");
 		}
-	}
-
-	static void writeToFile(final Path file, final String text) throws IOException {
-		Files.write(file, asList(text), Charset.forName("UTF-8"));
 	}
 }

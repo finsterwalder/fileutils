@@ -22,9 +22,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -33,13 +31,17 @@ import static org.mockito.Mockito.*;
 
 
 /**
+ * Test the NioFileWatcher.
+ * The tests rely on timing, since they work with actual file notifications.
+ * When the file access is slow, some tests may break and the timings (grace period and sleeps) need to be increased.
+ *
  * @author Malte Finsterwalder
  * @since 2013-09-04 18:18
  */
 public class NioFileWatcherTest {
 
 	private static final String FILENAME = "fileToWatchDoesNotExist.txt";
-	private static final Path PATH = Paths.get(FILENAME);
+	private static final Path file = Paths.get(FILENAME);
 	FileChangeListener fileChangeListenerMock = mock(FileChangeListener.class);
 	FileWatcher watcher;
 	private Path dirThatDoesNotExist = Paths.get("DirectoryThatDoesNotExist");
@@ -48,7 +50,7 @@ public class NioFileWatcherTest {
 	@Before
 	@After
 	public void deleteFile() throws IOException {
-		Files.deleteIfExists(PATH);
+		Files.deleteIfExists(file);
 		if (watcher != null) {
 			watcher.unwatch();
 		}
@@ -57,28 +59,53 @@ public class NioFileWatcherTest {
 	}
 
 	@Test
-	public void watchingAFileInADirectoryThatDoesNotExistStartsA() throws IOException, InterruptedException {
-		watcher = new NioFileWatcher(fileInDirThatDoesNotExist, fileChangeListenerMock, 200);
+	public void watchingAFileInADirectoryThatDoesNotExistStartsAPollingWatcher() throws IOException, InterruptedException {
+		watcher = new NioFileWatcher(fileInDirThatDoesNotExist, fileChangeListenerMock, 20);
 		Files.createDirectories(dirThatDoesNotExist);
-		PollingFileWatcherTest.writeToFile(fileInDirThatDoesNotExist, "Some Text");
-		Thread.sleep(3000); // Needed because of the 500ms polling intervall
+		FileUtils.writeToFile(fileInDirThatDoesNotExist, "Some text");
+		Thread.sleep(1100); // Needed because of the 500ms polling intervall
 		verify(fileChangeListenerMock).fileChanged();
 	}
 
 	@Test
-	public void watchingAFileThatDoesNotYetExist() throws FileNotFoundException, InterruptedException {
-		watcher = new NioFileWatcher(FILENAME, fileChangeListenerMock, 200);
-		writeToFile("Some Text");
-		Thread.sleep(1500);
+	public void watchingAFileThatDoesNotYetExist() throws IOException, InterruptedException {
+		watcher = new NioFileWatcher(file, fileChangeListenerMock, 20);
+		FileUtils.writeToFile(file, "Some text");
+		Thread.sleep(1100); // Needed because of the 500ms polling intervall
 		verify(fileChangeListenerMock).fileChanged();
 	}
 
 	@Test
-	public void noMoreNotificationsAfterUnwatch() throws FileNotFoundException, InterruptedException {
-		watcher = new NioFileWatcher(FILENAME, fileChangeListenerMock, 200);
+	public void changesBeforeWatchingAreNotNotified() throws IOException, InterruptedException {
+		FileUtils.writeToFile(file, "Some text");
+		watcher = new NioFileWatcher(file, fileChangeListenerMock, 10);
+		waitForNotify();
+		verifyNoMoreInteractions(fileChangeListenerMock);
+	}
+
+	private void waitForNotify() throws InterruptedException {
+		Thread.sleep(50);
+	}
+
+	@Test
+	public void changesAfterWatchingAreNotified() throws IOException, InterruptedException {
+		FileUtils.writeToFile(file, "Some text");
+		watcher = new NioFileWatcher(file, fileChangeListenerMock, 10);
+		FileUtils.writeToFile(file, "Some change");
+		waitForNotify();
+		verify(fileChangeListenerMock).fileChanged();
+	}
+
+	@Test
+	public void noMoreNotificationsAfterUnwatch() throws IOException, InterruptedException {
+		FileUtils.writeToFile(file, "Some text");
+		watcher = new NioFileWatcher(file, fileChangeListenerMock, 10);
+		FileUtils.writeToFile(file, "New text");
+		waitForNotify();
+		verify(fileChangeListenerMock).fileChanged();
 		watcher.unwatch();
-		writeToFile("Some Text");
-		Thread.sleep(220);
+		FileUtils.writeToFile(file, "Even more text");
+		waitForNotify();
 		verifyNoMoreInteractions(fileChangeListenerMock);
 	}
 
@@ -88,34 +115,16 @@ public class NioFileWatcherTest {
 	}
 
 	@Test
-	public void watchExistingFile() throws FileNotFoundException, InterruptedException {
-		writeToFile("Some Text");
-		watcher = new NioFileWatcher(PATH, fileChangeListenerMock, 200);
-		Thread.sleep(10);
-		writeToFile("Other Text");
-		Thread.sleep(250);
-		verify(fileChangeListenerMock).fileChanged();
-		verifyNoMoreInteractions(fileChangeListenerMock);
-	}
-
-	@Test
-	public void obeyGracePeriod() throws FileNotFoundException, InterruptedException {
-		writeToFile("Some Text");
+	public void obeyGracePeriod() throws IOException, InterruptedException {
+		FileUtils.writeToFile(file, "Some Text");
 		TimeProvider mockTimeProvider = mock(TimeProvider.class);
 		when(mockTimeProvider.getTime()).thenReturn(1L).thenReturn(40L).thenReturn(79L);
-		watcher = new NioFileWatcher(PATH, fileChangeListenerMock, 400, mockTimeProvider);
+		watcher = new NioFileWatcher(file, fileChangeListenerMock, 40, mockTimeProvider);
 		for (int i = 0; i < 3; i++) {
-			writeToFile("Other Text " + i);
-			Thread.sleep(3);
+			FileUtils.writeToFile(file, "Other Text " + i);
+			Thread.sleep(5);
 		}
-		Thread.sleep(600);
+		waitForNotify();
 		verify(fileChangeListenerMock).fileChanged();
-		verifyNoMoreInteractions(fileChangeListenerMock);
-	}
-
-	private void writeToFile(final String text) throws FileNotFoundException {
-		try (PrintWriter writer = new PrintWriter(FILENAME)) {
-			writer.println(text);
-		}
 	}
 }
