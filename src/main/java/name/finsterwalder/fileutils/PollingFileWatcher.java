@@ -49,8 +49,8 @@ import java.util.concurrent.TimeUnit;
 public class PollingFileWatcher implements FileWatcher {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(PollingFileWatcher.class);
-	private static final int DEFAULT_RELOAD_INTERVAL_IN_MS = 500;
-	private static final int DEFAULT_GRACE_PERIOD_IN_MS = 1000;
+	public static final int DEFAULT_RELOAD_INTERVAL_IN_MS = 500;
+	public static final int DEFAULT_GRACE_PERIOD_IN_MS = 1000;
 
 	private final ScheduledExecutorService executorService;
 	private final Path path;
@@ -174,10 +174,7 @@ public class PollingFileWatcher implements FileWatcher {
 			}
 			return false;
 		} catch (IOException e) {
-			if (lastSeen != null) {
-				return true;
-			}
-			return false;
+			return (lastSeen != null);
 		}
 	}
 
@@ -194,11 +191,12 @@ public class PollingFileWatcher implements FileWatcher {
 	@Override
 	protected void finalize() throws Throwable {
 		unwatch();
+		super.finalize();
 	}
 
 	/*package*/ static class ChangeWatcher implements Runnable {
 
-		private PollingFileWatcher watcher;
+		private final PollingFileWatcher watcher;
 
 		public ChangeWatcher(final PollingFileWatcher watcher) {
 			this.watcher = watcher;
@@ -225,7 +223,7 @@ public class PollingFileWatcher implements FileWatcher {
 
 	/*package*/ static class DelayedNotifier implements Runnable {
 
-		private PollingFileWatcher watcher;
+		private final PollingFileWatcher watcher;
 
 		public DelayedNotifier(final PollingFileWatcher watcher) {
 			this.watcher = watcher;

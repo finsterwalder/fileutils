@@ -22,11 +22,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.mockito.Mockito.*;
 
@@ -38,31 +39,28 @@ import static org.mockito.Mockito.*;
 public class NioFileWatcherTest {
 
 	private static final String FILENAME = "fileToWatchDoesNotExist.txt";
-	private static final Path PATH = FileSystems.getDefault().getPath(FILENAME);
+	private static final Path PATH = Paths.get(FILENAME);
 	FileChangeListener fileChangeListenerMock = mock(FileChangeListener.class);
-	File file = new File(FILENAME);
 	FileWatcher watcher;
-	private File dirThatDoesNotExist = new File("DirectoryThatDoesNotExist");
-	private File fileInDirThatDoesNotExist = new File("DirectoryThatDoesNotExist", "file");
+	private Path dirThatDoesNotExist = Paths.get("DirectoryThatDoesNotExist");
+	private Path fileInDirThatDoesNotExist = Paths.get("DirectoryThatDoesNotExist", "file");
 
 	@Before
 	@After
-	public void deleteFile() {
-		file.delete();
+	public void deleteFile() throws IOException {
+		Files.deleteIfExists(PATH);
 		if (watcher != null) {
 			watcher.unwatch();
 		}
-		fileInDirThatDoesNotExist.delete();
-		dirThatDoesNotExist.delete();
+		Files.deleteIfExists(fileInDirThatDoesNotExist);
+		Files.deleteIfExists(dirThatDoesNotExist);
 	}
 
 	@Test
-	public void watchingAFileInADirectoryThatDoesNotExist() throws FileNotFoundException, InterruptedException {
+	public void watchingAFileInADirectoryThatDoesNotExistStartsA() throws IOException, InterruptedException {
 		watcher = new NioFileWatcher(fileInDirThatDoesNotExist, fileChangeListenerMock, 200);
-		dirThatDoesNotExist.mkdirs();
-		try (PrintWriter writer = new PrintWriter(fileInDirThatDoesNotExist)) {
-			writer.println("Some Text");
-		}
+		Files.createDirectories(dirThatDoesNotExist);
+		PollingFileWatcherTest.writeToFile(fileInDirThatDoesNotExist, "Some Text");
 		Thread.sleep(3000); // Needed because of the 500ms polling intervall
 		verify(fileChangeListenerMock).fileChanged();
 	}
@@ -92,7 +90,7 @@ public class NioFileWatcherTest {
 	@Test
 	public void watchExistingFile() throws FileNotFoundException, InterruptedException {
 		writeToFile("Some Text");
-		watcher = new NioFileWatcher(FILENAME, fileChangeListenerMock, 200);
+		watcher = new NioFileWatcher(PATH, fileChangeListenerMock, 200);
 		Thread.sleep(10);
 		writeToFile("Other Text");
 		Thread.sleep(250);

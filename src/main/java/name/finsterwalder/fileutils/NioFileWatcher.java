@@ -62,8 +62,7 @@ public class NioFileWatcher implements FileWatcher {
 	private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 	private PollingFileWatcher pollingFileWatcher;
 	private WatchService watchService;
-	private final Path fileToWatch;
-	private final Object lock = new Object();
+	private final Path absoluteFileToWatch;
 	private volatile long lastChanged;
 	private volatile long lastProcessed;
 	private final TimeProvider timeProvider;
@@ -100,8 +99,8 @@ public class NioFileWatcher implements FileWatcher {
 	 * @param filenameOfFileToWatch File to watch
 	 * @param fileChangeListener Listener to notify about changes
 	 */
-	public NioFileWatcher(final String filenameOfFileToWatch, final FileChangeListener fileChangeListener, long gracePeriod) {
-		this(FileSystems.getDefault().getPath(filenameOfFileToWatch), fileChangeListener, gracePeriod, new SimpleDateTimeProvider());
+	public NioFileWatcher(final String filenameOfFileToWatch, final FileChangeListener fileChangeListener, long gracePeriodInMs) {
+		this(FileSystems.getDefault().getPath(filenameOfFileToWatch), fileChangeListener, gracePeriodInMs, new SimpleDateTimeProvider());
 	}
 
 	/**
@@ -109,8 +108,8 @@ public class NioFileWatcher implements FileWatcher {
 	 * @param fileToWatch File to watch
 	 * @param fileChangeListener Listener to notify about changes
 	 */
-	public NioFileWatcher(final File fileToWatch, final FileChangeListener fileChangeListener, long gracePeriod) {
-		this(fileToWatch.toPath(), fileChangeListener, gracePeriod, new SimpleDateTimeProvider());
+	public NioFileWatcher(final File fileToWatch, final FileChangeListener fileChangeListener, long gracePeriodInMs) {
+		this(fileToWatch.toPath(), fileChangeListener, gracePeriodInMs, new SimpleDateTimeProvider());
 	}
 
 	/**
@@ -118,40 +117,46 @@ public class NioFileWatcher implements FileWatcher {
 	 * @param fileToWatch File to watch
 	 * @param fileChangeListener Listener to notify about changes
 	 */
-	public NioFileWatcher(final Path fileToWatch, final FileChangeListener fileChangeListener, long gracePeriod) {
-		this(fileToWatch, fileChangeListener, gracePeriod, new SimpleDateTimeProvider());
+	public NioFileWatcher(final Path fileToWatch, final FileChangeListener fileChangeListener, long gracePeriodInMs) {
+		this(fileToWatch, fileChangeListener, gracePeriodInMs, new SimpleDateTimeProvider());
 	}
 
-	/*package*/ NioFileWatcher(final Path fileToWatchParam, final FileChangeListener fileChangeListener, final long gracePeriod, TimeProvider timeProvider) {
-		Ensure.notNull(fileToWatchParam, "fileToWatchParam");
+	/*package*/ NioFileWatcher(final Path fileToWatch, final FileChangeListener fileChangeListener, final long gracePeriodInMs, TimeProvider timeProvider) {
+		Ensure.notNull(fileToWatch, "fileToWatch");
 		Ensure.notNull(fileChangeListener, "fileChangeListener");
 		Ensure.notNull(timeProvider, "timeProvider");
 		this.timeProvider = timeProvider;
-		fileToWatch = fileToWatchParam.toAbsolutePath();
-		final Path directoryPath = fileToWatch.getParent();
+		absoluteFileToWatch = fileToWatch.toAbsolutePath();
+		final Path directoryPath = absoluteFileToWatch.getParent();
 		if (directoryPath == null) {
-			throw new IllegalArgumentException("File does not have a parent directory: " + fileToWatch);
+			throw new IllegalArgumentException("File does not have a parent directory: " + absoluteFileToWatch);
 		}
 		if (Files.exists(directoryPath)) {
-			initWatcher(fileChangeListener, gracePeriod, directoryPath);
+			initWatcher(directoryPath, fileChangeListener, gracePeriodInMs);
 		} else {
-			pollingFileWatcher = new PollingFileWatcher(fileToWatch.toFile(), new FileChangeListener() {
+			pollingFileWatcher = new PollingFileWatcher(absoluteFileToWatch, new FileChangeListener() {
 				@Override
 				public void fileChanged() {
 					pollingFileWatcher.unwatch();
 					pollingFileWatcher = null;
-					initWatcher(fileChangeListener, gracePeriod, directoryPath);
+					initWatcher(directoryPath, fileChangeListener, gracePeriodInMs);
 					fileChangeListener.fileChanged();
 				}
-			});
+			}, PollingFileWatcher.DEFAULT_RELOAD_INTERVAL_IN_MS, gracePeriodInMs);
 		}
 	}
 
-	private void initWatcher(final FileChangeListener fileChangeListener, final long gracePeriod, final Path directoryPath) {
-		final Path filenamePath = fileToWatch.getFileName();
+	@Override
+	protected void finalize() throws Throwable {
+		unwatch();
+		super.finalize();
+	}
+
+	private void initWatcher(final Path directoryPath, final FileChangeListener fileChangeListener, final long gracePeriod) {
+		final Path filenamePath = absoluteFileToWatch.getFileName();
 		try {
 			watchService = directoryPath.getFileSystem().newWatchService();
-			directoryPath.register(watchService, ENTRY_CREATE, ENTRY_MODIFY);
+			directoryPath.register(watchService, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
 			new Thread() {
 				@Override
 				public void run() {
@@ -174,24 +179,23 @@ public class NioFileWatcher implements FileWatcher {
 					} catch (ClosedWatchServiceException e) {
 						// nothing to do, since polling loop is already cancelled
 					} finally {
-						close(watchService, fileToWatch);
+						close(watchService, absoluteFileToWatch);
 					}
 				}
 
 				private void notifyChangeListener(final FileChangeListener fileChangeListener, final long gracePeriod) {
 					if (gracePeriod > 0) {
-						final long changeTimestamp = NioFileWatcher.this.timeProvider.getTime();
-						synchronized (lock) {
+						final long changeTimestamp = timeProvider.getTime();
+						synchronized (NioFileWatcher.this) {
 							lastChanged = changeTimestamp;
 						}
 						scheduler.schedule(new Runnable() {
 
 							@Override
 							public void run() {
-								synchronized (lock) {
-									long lastChanged = NioFileWatcher.this.lastChanged;
-									if (changeTimestamp == lastChanged && NioFileWatcher.this.lastProcessed < lastChanged) {
-										NioFileWatcher.this.lastProcessed = lastChanged;
+								synchronized (NioFileWatcher.this) {
+									if (changeTimestamp == lastChanged && lastProcessed < lastChanged) {
+										lastProcessed = lastChanged;
 										fileChangeListener.fileChanged();
 									}
 								}
@@ -201,18 +205,18 @@ public class NioFileWatcher implements FileWatcher {
 						fileChangeListener.fileChanged();
 					}
 				}
-
 			}.start();
 		} catch (Exception e) {
-			throw new RuntimeException("Could not initialize file watcher for " + fileToWatch.toAbsolutePath(), e);
+			throw new RuntimeException("Could not initialize file watcher for " + absoluteFileToWatch.toAbsolutePath(), e);
 		}
 	}
 
 	@Override
 	public void unwatch() {
-		close(watchService, fileToWatch);
+		close(watchService, absoluteFileToWatch);
 		if (pollingFileWatcher != null) {
 			pollingFileWatcher.unwatch();
+			pollingFileWatcher = null;
 		}
 	}
 

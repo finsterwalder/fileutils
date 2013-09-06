@@ -167,14 +167,14 @@ public class PollingFileWatcherTest {
 		verify(executorMock, never()).schedule(any(PollingFileWatcher.DelayedNotifier.class), eq(6L), eq(TimeUnit.MILLISECONDS));
 	}
 
-	private void ensureNewFileWithNewTimestamp(final Path file) throws IOException {
+	static void ensureNewFileWithNewTimestamp(final Path file) throws IOException {
 		FileTime lastModified = Files.getLastModifiedTime(file);
 		while (lastModified.compareTo(Files.getLastModifiedTime(file)) >= 0) {
 			writeToFile(file, "other");
 		}
 	}
 
-	private void writeToFile(final Path file, final String text) throws IOException {
+	static void writeToFile(final Path file, final String text) throws IOException {
 		Files.write(file, asList(text), Charset.forName("UTF-8"));
 	}
 }
