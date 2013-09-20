@@ -18,9 +18,15 @@
 package name.finsterwalder.fileutils;
 
 /**
+ * Callback interface to be notified about file changes.
+ *
  * @author Malte Finsterwalder
  * @since 2013-09-04 18:18
  */
 public interface FileChangeListener {
+
+	/**
+	 * This method is called whenever a change to a file is detected.
+	 */
 	void fileChanged();
 }
