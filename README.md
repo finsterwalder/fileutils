@@ -29,7 +29,7 @@ File file = ...
 FileChangeListener listener = ...
 // This creates a NioFileWatcher with a default grace period of 1000ms.
 new NioFileWatcher(file, fileChangeListener);
-'''
+```
 
 It also has a grace period to wait that all changes to the file are completed, to reduce the amount of notifications and to prevent
 access to a file, while it is changed by another process. A notification is issued, when there where no more changes during the grace period.
