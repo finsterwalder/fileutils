@@ -10,12 +10,12 @@ The PollingFileWatcher checks the modified timestamp of the file in regular inte
 
 It is created like this:
 
-'''java
+```java
 File file = ...
 FileChangeListener listener = ...
 // This creates a PollingFileWatcher with a default polling intervall of 500ms and a default grace period of 1000ms.
 new PollingFileWatcher(file, fileChangeListener);
-'''
+```
 
 Whenever the timestamp of the file changed, the PollingFileWatcher waits a grace period, before
 it checks the timestamp again to ensure that no further modifications where made and that the modification to the file was completed.
@@ -24,7 +24,7 @@ Then the registered ChangeListener is notified.
 The NioFileWatcher uses the java.nio.file.WatchService, which can be used to register a listener for file changes with the operating system.
 It can be created like this:
 
-'''java
+```java
 File file = ...
 FileChangeListener listener = ...
 // This creates a NioFileWatcher with a default grace period of 1000ms.
