@@ -51,6 +51,9 @@ import static java.nio.file.StandardWatchEventKinds.*;
  * File modifications often first truncate a file and then write the file new. Without a grace period, several notifications
  * will be issued for a single change. The grace period reduces the amount of notifications.
  *
+ * The NioFileWatcher allways watches for all changes in the parent directory of the file to watch, since only directories can be
+ * monitored. Changes to other files are ignored and not notified of course.
+ *
  * @author Malte Finsterwalder
  * @since 2013-09-04 18:18
  */
