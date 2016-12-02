@@ -21,7 +21,7 @@
 
     <groupId>name.finsterwalder</groupId>
     <artifactId>fileutils</artifactId>
-    <version>1.1-SNAPSHOT</version>
+    <version>1.1</version>
 
     <description>FileUtils - A simple FileWatcher Utility</description>
     <url>https://github.com/finsterwalder/fileutils</url>
@@ -37,7 +37,8 @@
         <url>git@github.com:finsterwalder/fileutils.git</url>
         <connection>scm:git:git@github.com:finsterwalder/fileutils.git</connection>
         <developerConnection>scm:git:git@github.com:finsterwalder/fileutils.git</developerConnection>
-    </scm>
+      <tag>fileutils-1.1</tag>
+  </scm>
 
     <developers>
         <developer>
