@@ -62,6 +62,7 @@ public class NioFileWatcher implements FileWatcher {
 	private static final Logger LOGGER = LoggerFactory.getLogger(NioFileWatcher.class);
 	private static final int DEFAULT_GRACE_PERIOD = 1000;
 
+	private final Object lock = new Object();
 	private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 	private PollingFileWatcher pollingFileWatcher;
 	private WatchService watchService;
@@ -189,21 +190,17 @@ public class NioFileWatcher implements FileWatcher {
 				private void notifyChangeListener(final FileChangeListener fileChangeListener, final long gracePeriod) {
 					if (gracePeriod > 0) {
 						final long changeTimestamp = timeProvider.getTime();
-						synchronized (NioFileWatcher.this) {
+						synchronized (lock) {
 							lastChanged = changeTimestamp;
 						}
-						scheduler.schedule(new Runnable() {
-
-							@Override
-							public void run() {
-								synchronized (NioFileWatcher.this) {
-									if (changeTimestamp == lastChanged && lastProcessed < lastChanged) {
-										lastProcessed = lastChanged;
-										fileChangeListener.fileChanged();
-									}
-								}
-							}
-						}, gracePeriod, TimeUnit.MILLISECONDS);
+						scheduler.schedule(() -> {
+                            synchronized (lock) {
+                                if (changeTimestamp == lastChanged && lastProcessed < lastChanged) {
+                                    lastProcessed = lastChanged;
+                                    fileChangeListener.fileChanged();
+                                }
+                            }
+                        }, gracePeriod, TimeUnit.MILLISECONDS);
 					} else {
 						fileChangeListener.fileChanged();
 					}
