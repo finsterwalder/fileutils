@@ -84,7 +84,7 @@ public class NioFileWatcherTest {
 	}
 
 	private void waitForNotify() throws InterruptedException {
-		Thread.sleep(50);
+		Thread.sleep(70);
 	}
 
 	@Test
@@ -104,6 +104,7 @@ public class NioFileWatcherTest {
 		waitForNotify();
 		verify(fileChangeListenerMock).fileChanged();
 		watcher.unwatch();
+		Thread.sleep(3);
 		FileUtils.writeToFile(file, "Even more text");
 		waitForNotify();
 		verifyNoMoreInteractions(fileChangeListenerMock);
@@ -122,7 +123,7 @@ public class NioFileWatcherTest {
 		watcher = new NioFileWatcher(file, fileChangeListenerMock, 40, mockTimeProvider);
 		for (int i = 0; i < 3; i++) {
 			FileUtils.writeToFile(file, "Other Text " + i);
-			Thread.sleep(5);
+			Thread.sleep(3);
 		}
 		waitForNotify();
 		verify(fileChangeListenerMock).fileChanged();
