@@ -17,9 +17,11 @@
 
 package name.finsterwalder.fileutils;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -29,8 +31,9 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-
-import static org.mockito.Mockito.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 
 /**
@@ -45,14 +48,14 @@ public class PollingFileWatcherTest {
 	private final Path notExistingFile = Paths.get(NOT_EXISTING_FILENAME);
 	private PollingFileWatcher watcher;
 
-	@Before
+	@BeforeEach
 	public void before() throws IOException, InterruptedException {
 		Files.deleteIfExists(notExistingFile);
 		Files.deleteIfExists(existingFile);
 		FileUtils.writeToFile(existingFile, "some content");
 	}
 
-	@After
+	@AfterEach
 	public void after() throws InterruptedException, IOException {
 		Files.deleteIfExists(notExistingFile);
 		Files.deleteIfExists(existingFile);

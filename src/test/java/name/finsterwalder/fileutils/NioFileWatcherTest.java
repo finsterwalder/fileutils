@@ -17,17 +17,20 @@
 
 package name.finsterwalder.fileutils;
 
-import name.finsterwalder.utils.TimeProvider;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-
-import static org.mockito.Mockito.*;
+import name.finsterwalder.utils.TimeProvider;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 
 /**
@@ -47,8 +50,8 @@ public class NioFileWatcherTest {
 	private Path dirThatDoesNotExist = Paths.get("DirectoryThatDoesNotExist");
 	private Path fileInDirThatDoesNotExist = Paths.get("DirectoryThatDoesNotExist", "file");
 
-	@Before
-	@After
+	@BeforeEach
+	@AfterEach
 	public void deleteFile() throws IOException {
 		Files.deleteIfExists(file);
 		if (watcher != null) {
@@ -110,9 +113,9 @@ public class NioFileWatcherTest {
 		verifyNoMoreInteractions(fileChangeListenerMock);
 	}
 
-	@Test(expected = IllegalArgumentException.class)
+	@Test
 	public void theRootDirectoryCanNotBeWatchedBecauseItDoesNotHaveAParent() {
-		watcher = new NioFileWatcher("/", mock(FileChangeListener.class));
+		assertThrows(IllegalArgumentException.class, () -> new NioFileWatcher("/", mock(FileChangeListener.class)));
 	}
 
 	@Test
